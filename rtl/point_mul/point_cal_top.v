@@ -130,8 +130,8 @@ assign              {ins_op_mod_2,ins_type_2,ins_op_num_ab_2,ins_op_r_2}   =   i
 
 //实现状态机
 always @(*) begin
-    case (state)
-        IDLE: begin
+    case (state)///更新状态
+        IDLE: begin///空闲状态
             if(ins_vld_i)
                 if(ins_type_0 == INS_FIN)
                     nxt_state   =   FIN;
@@ -140,32 +140,32 @@ always @(*) begin
             else
                 nxt_state   =   IDLE;
         end
-        FETCH:begin
+        FETCH:begin///取指令状态
             if(ins_type_0 == INS_CAL || ins_type_1 == INS_CAL || ins_type_2 == INS_CAL)
                 nxt_state   =   CAL;
             else if(ins_type_0 == INS_UPDT_REG)
                 nxt_state   =   UPDT_REG;
         end
-        CAL: 
+        CAL: ///计算状态
             if(op_done)
                 nxt_state   =   IDLE;
                 // nxt_state   =   CAL;//连续计算
             else
                 nxt_state   =   CAL;
-        UPDT_REG:
+        UPDT_REG:///更新参数状态
             nxt_state   =   IDLE;
-        FIN:
+        FIN:///终止状态
             nxt_state   =   IDLE;
-        default: 
+        default: ///剩余情况一律转换为空闲状态
             nxt_state   =   IDLE;
-    endcase
+    endcase3
 end
 
 always @(posedge clk or negedge rst_n) begin
-    if(~rst_n)
-        state   <=  IDLE;
+    if(~rst_n)///rst_n是给定的一个输入
+        state   <=  IDLE;///将状态置为空闲，即不计算
     else begin
-        state   <=  nxt_state;
+        state   <=  nxt_state;///将状态置为上述过程中确定的“下一个状态”，即正常运行
     end  
 end
 
@@ -173,7 +173,7 @@ end
 assign              ins_updt_reg_id    =   ins_op_r_0;
 
 //将运算类型传递给计算单元
-assign              op_done =   mod_0_done || mod_1_done || mod_2_done;
+assign              op_done =   mod_0_done || mod_1_done || mod_2_done;///3维
 // assign              op_done =   mod_0_done;
 //单元0
 assign              mod_0_start =       state == CAL && ins_type_0 == INS_CAL;//在指令有效的情况下启动运算符
@@ -187,6 +187,7 @@ assign              op_sel_2    =       ins_op_mod_2;
 assign              {op_mod_0_a_sel,op_mod_0_b_sel} =   ins_op_num_ab_0;
 assign              {op_mod_1_a_sel,op_mod_1_b_sel} =   ins_op_num_ab_1;
 assign              {op_mod_2_a_sel,op_mod_2_b_sel} =   ins_op_num_ab_2;
+        ///确定每个坐标的更新路径，即调用模乘加减模块后如何更新三维坐标
 assign              var_x2_updt_en  =   ins_op_r_0  == OP_NUM_SEL_X2 ? 2'd1 : ins_op_r_1  == OP_NUM_SEL_X2 ? 2'd2 : ins_op_r_2  == OP_NUM_SEL_X2 ? 2'd3 : 2'd0;
 assign              var_y2_updt_en  =   ins_op_r_0  == OP_NUM_SEL_Y2 ? 2'd1 : ins_op_r_1  == OP_NUM_SEL_Y2 ? 2'd2 : ins_op_r_2  == OP_NUM_SEL_Y2 ? 2'd3 : 2'd0;
 assign              var_z2_updt_en  =   ins_op_r_0  == OP_NUM_SEL_Z2 ? 2'd1 : ins_op_r_1  == OP_NUM_SEL_Z2 ? 2'd2 : ins_op_r_2  == OP_NUM_SEL_Z2 ? 2'd3 : 2'd0;
@@ -212,7 +213,7 @@ always @(posedge clk or negedge rst_n) begin
                
     end
 end
-
+/// 更新“模”
 always @(posedge clk or negedge rst_n) begin
     if(~rst_n) begin
         // cfg_prim_num              <= 256'b0;
@@ -225,6 +226,7 @@ end
 assign              cfg_prim_num_updt_en    =   ins_updt_reg_id == OP_NUM_CNST_P256;
 
 //变量寄存器更新
+san'wie'zuo        ///即调用模乘加减模块后，使用结果更新三维坐标
 always @(posedge clk or negedge rst_n) begin
     if(~rst_n) begin
         // {var_x2,var_y2,var_z2,var_t0,var_t1,var_t2}              <= {256'd2,256'd3,256'd4,256'd5,256'd6,256'd7};//调试用
@@ -327,20 +329,21 @@ assign              op_mod_2_b  =   op_mod_2_b_sel == OP_NUM_SEL_X2 ? var_x2:
                                     256'd0
                                     ;
 
-
+///3维调用模加减乘模块
 mul_add_sub_mod_module U_cal_0 (
-    .clk(clk), 
-    .rst_n(rst_n), 
+    .clk(clk),                  ///时钟
+    .rst_n(rst_n),              ///类似于一个有效位的参数
 
-    .op_vld_i(mod_0_start), 
-    .op_sel_i(op_sel_0), 
-    .op_mod_num_i(cfg_prim_num),
+    .op_vld_i(mod_0_start),     ///运算符（是否被启动）
+    .op_sel_i(op_sel_0),        ///指令信息
+    .op_mod_num_i(cfg_prim_num),///“模”
+    
     // .op_mod_num_i(P256),
 
-    .op_a_i     (op_mod_0_a), 
-    .op_b_i     (op_mod_0_b), 
-    .op_done_o  (mod_0_done), 
-    .op_rslt_o  (op_mod_0_r)
+    .op_a_i     (op_mod_0_a), ///第一个操作数
+    .op_b_i     (op_mod_0_b), ///第二个操作数
+    .op_done_o  (mod_0_done), ///运算完成信号（一维）
+    .op_rslt_o  (op_mod_0_r)  ///运算结果（一维）
 );
 
 mul_add_sub_mod_module U_cal_1 (
